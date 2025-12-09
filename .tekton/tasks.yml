@@ -63,6 +63,7 @@ spec:
           rm -rf "${WORKSPACE_SOURCE_PATH}"/..?*
         fi
 ---
+---
 apiVersion: tekton.dev/v1beta1
 kind: Task
 metadata:
@@ -78,14 +79,27 @@ spec:
         #!/bin/bash
         set -e
 
-        # Upgrade pip/setuptools to avoid pyproject.toml parsing errors
+        # Upgrade pip to avoid TOML parser errors
         python -m pip install --upgrade pip setuptools wheel
 
-        # Install dependencies including flake8
         pip install -r requirements.txt
 
-        echo "Running flake8..."
-        flake8 .
+        echo "Running flake8 with GitHub Actions rules..."
+
+        # First pass (critical errors)
+        flake8 service \
+          --count \
+          --select=E9,F63,F7,F82 \
+          --show-source \
+          --statistics
+
+        # Second pass (complexity, line length)
+        flake8 service \
+          --count \
+          --max-complexity=10 \
+          --max-line-length=127 \
+          --statistics
+
 ---
 apiVersion: tekton.dev/v1beta1
 kind: Task
