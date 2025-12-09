@@ -7,7 +7,6 @@ spec:
     - name: output
     - name: basic-auth
       optional: true
-
   params:
     - name: url
       type: string
@@ -20,25 +19,16 @@ spec:
     - name: deleteExisting
       type: string
       default: "true"
-
   steps:
     - name: clone
       image: quay.io/tektoncd/git-init:latest
-      securityContext:
-        runAsNonRoot: true
-        capabilities:
-          drop: [ "ALL" ]
-        seccompProfile:
-          type: RuntimeDefault
       script: |
         #!/usr/bin/env sh
         set -eu
 
-        echo "Cloning repository $(params.url) ..."
         TARGET_DIR="$(workspaces.output.path)/$(params.subdirectory)"
 
         if [ "$(params.deleteExisting)" = "true" ] && [ -d "${TARGET_DIR}" ]; then
-          echo "Removing existing directory ${TARGET_DIR}"
           rm -rf "${TARGET_DIR}"
         fi
 
@@ -54,16 +44,9 @@ metadata:
 spec:
   workspaces:
     - name: source
-
   steps:
     - name: remove
       image: alpine:3
-      securityContext:
-        runAsNonRoot: true
-        capabilities:
-          drop: [ "ALL" ]
-        seccompProfile:
-          type: RuntimeDefault
       env:
         - name: WORKSPACE_SOURCE_PATH
           value: "$(workspaces.source.path)"
@@ -71,7 +54,7 @@ spec:
       script: |
         #!/usr/bin/env sh
         set -eu
-        echo "Removing all files from ${WORKSPACE_SOURCE_PATH} ..."
+
         if [ -d "${WORKSPACE_SOURCE_PATH}" ] ; then
           rm -rf "${WORKSPACE_SOURCE_PATH:?}"/*
           rm -rf "${WORKSPACE_SOURCE_PATH}"/.[!.]*
@@ -85,26 +68,19 @@ metadata:
 spec:
   workspaces:
     - name: source
-
   params:
     - name: args
-      description: Arguments to pass to nose
       type: string
       default: "-v"
-
+      description: Arguments to pass to nose
   steps:
     - name: nosetests
       image: python:3.9-slim
       workingDir: "$(workspaces.source.path)"
-      securityContext:
-        runAsNonRoot: true
-        capabilities:
-          drop: [ "ALL" ]
-        seccompProfile:
-          type: RuntimeDefault
       script: |
         #!/bin/bash
         set -e
+
         python -m pip install --upgrade pip wheel
         pip install -r requirements.txt
         nosetests $(params.args)
@@ -116,23 +92,14 @@ metadata:
 spec:
   params:
     - name: SCRIPT
-      description: |
-        oc commands to run during deployment.
-        Example: "oc apply -f deployment.yaml"
       type: string
-
+      description: OpenShift CLI commands to execute
   steps:
     - name: run-oc
       image: quay.io/openshift/origin-cli:latest
-      securityContext:
-        runAsNonRoot: true
-        capabilities:
-          drop: [ "ALL" ]
-        seccompProfile:
-          type: RuntimeDefault
       script: |
         #!/usr/bin/env bash
         set -e
-        echo "Running OpenShift deployment commands..."
+
         echo "Executing: $(params.SCRIPT)"
         $(params.SCRIPT)
