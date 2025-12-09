@@ -1,0 +1,105 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: git-clone
+spec:
+  workspaces:
+    - name: output
+    - name: basic-auth
+      optional: true
+  params:
+    - name: url
+      type: string
+    - name: revision
+      type: string
+      default: "main"
+    - name: subdirectory
+      type: string
+      default: ""
+    - name: deleteExisting
+      type: string
+      default: "true"
+  steps:
+    - name: clone
+      image: quay.io/tektoncd/git-init:latest
+      script: |
+        #!/usr/bin/env sh
+        set -eu
+
+        TARGET_DIR="$(workspaces.output.path)/$(params.subdirectory)"
+
+        if [ "$(params.deleteExisting)" = "true" ] && [ -d "${TARGET_DIR}" ]; then
+          rm -rf "${TARGET_DIR}"
+        fi
+
+        /ko-app/git-init \
+          -url="$(params.url)" \
+          -revision="$(params.revision)" \
+          -path="${TARGET_DIR}"
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: cleanup
+spec:
+  workspaces:
+    - name: source
+  steps:
+    - name: remove
+      image: alpine:3
+      env:
+        - name: WORKSPACE_SOURCE_PATH
+          value: "$(workspaces.source.path)"
+      workingDir: "$(workspaces.source.path)"
+      script: |
+        #!/usr/bin/env sh
+        set -eu
+
+        if [ -d "${WORKSPACE_SOURCE_PATH}" ] ; then
+          rm -rf "${WORKSPACE_SOURCE_PATH:?}"/*
+          rm -rf "${WORKSPACE_SOURCE_PATH}"/.[!.]*
+          rm -rf "${WORKSPACE_SOURCE_PATH}"/..?*
+        fi
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: nose
+spec:
+  workspaces:
+    - name: source
+  params:
+    - name: args
+      type: string
+      default: "-v"
+      description: Arguments to pass to nose
+  steps:
+    - name: nosetests
+      image: python:3.9-slim
+      workingDir: "$(workspaces.source.path)"
+      script: |
+        #!/bin/bash
+        set -e
+
+        python -m pip install --upgrade pip wheel
+        pip install -r requirements.txt
+        nosetests $(params.args)
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: openshift-deploy
+spec:
+  params:
+    - name: SCRIPT
+      type: string
+      description: OpenShift CLI commands to execute
+  steps:
+    - name: run-oc
+      image: quay.io/openshift/origin-cli:latest
+      script: |
+        #!/usr/bin/env bash
+        set -e
+
+        echo "Executing: $(params.SCRIPT)"
+        $(params.SCRIPT)
