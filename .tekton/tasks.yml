@@ -1,6 +1,55 @@
 apiVersion: tekton.dev/v1beta1
 kind: Task
 metadata:
+  name: git-clone
+spec:
+  workspaces:
+    - name: output
+    - name: basic-auth
+      optional: true
+
+  params:
+    - name: url
+      type: string
+    - name: revision
+      type: string
+      default: "main"
+    - name: subdirectory
+      type: string
+      default: ""
+    - name: deleteExisting
+      type: string
+      default: "true"
+
+  steps:
+    - name: clone
+      image: quay.io/tektoncd/git-init:latest
+      securityContext:
+        runAsNonRoot: true
+        capabilities:
+          drop: [ "ALL" ]
+        seccompProfile:
+          type: RuntimeDefault
+      script: |
+        #!/usr/bin/env sh
+        set -eu
+
+        echo "Cloning repository $(params.url) ..."
+        TARGET_DIR="$(workspaces.output.path)/$(params.subdirectory)"
+
+        if [ "$(params.deleteExisting)" = "true" ] && [ -d "${TARGET_DIR}" ]; then
+          echo "Removing existing directory ${TARGET_DIR}"
+          rm -rf "${TARGET_DIR}"
+        fi
+
+        /ko-app/git-init \
+          -url="$(params.url)" \
+          -revision="$(params.revision)" \
+          -path="${TARGET_DIR}"
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
   name: cleanup
 spec:
   workspaces:
@@ -12,8 +61,7 @@ spec:
       securityContext:
         runAsNonRoot: true
         capabilities:
-          drop:
-            - ALL
+          drop: [ "ALL" ]
         seccompProfile:
           type: RuntimeDefault
       env:
@@ -51,8 +99,7 @@ spec:
       securityContext:
         runAsNonRoot: true
         capabilities:
-          drop:
-            - ALL
+          drop: [ "ALL" ]
         seccompProfile:
           type: RuntimeDefault
       script: |
@@ -80,8 +127,7 @@ spec:
       securityContext:
         runAsNonRoot: true
         capabilities:
-          drop:
-            - ALL
+          drop: [ "ALL" ]
         seccompProfile:
           type: RuntimeDefault
       script: |
