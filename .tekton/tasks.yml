@@ -9,13 +9,17 @@ spec:
   steps:
     - name: remove
       image: alpine:3
+      securityContext:
+        runAsNonRoot: true
+        capabilities:
+          drop:
+            - ALL
+        seccompProfile:
+          type: RuntimeDefault
       env:
         - name: WORKSPACE_SOURCE_PATH
           value: "$(workspaces.source.path)"
       workingDir: "$(workspaces.source.path)"
-      securityContext:
-        runAsNonRoot: false
-        runAsUser: 0
       script: |
         #!/usr/bin/env sh
         set -eu
@@ -44,6 +48,13 @@ spec:
     - name: nosetests
       image: python:3.9-slim
       workingDir: "$(workspaces.source.path)"
+      securityContext:
+        runAsNonRoot: true
+        capabilities:
+          drop:
+            - ALL
+        seccompProfile:
+          type: RuntimeDefault
       script: |
         #!/bin/bash
         set -e
@@ -66,6 +77,13 @@ spec:
   steps:
     - name: run-oc
       image: quay.io/openshift/origin-cli:latest
+      securityContext:
+        runAsNonRoot: true
+        capabilities:
+          drop:
+            - ALL
+        seccompProfile:
+          type: RuntimeDefault
       script: |
         #!/usr/bin/env bash
         set -e
